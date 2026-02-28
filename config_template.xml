@@ -1,0 +1,437 @@
+<!--
+
+	SmartFoxServer PRO 
+	(c) 2004-2009 gotoAndPlay()
+	www.gotoandplay.it
+	www.smartfoxserver.com
+	
+	Main Configuration file
+	version 1.6.6
+	
+	NOTE:
+	You can find detailed informations on how to configure the server by reading
+	the tutorials in section 2 of the documentation.
+	( http://www.smartfoxserver.com/docs/docPages/config/basics.htm )
+	
+-->
+
+<SmartFoxConfig>
+	
+	<ServerSetup>
+		<!-- 
+			Specify an ip address or use an asterisk(*) to bind all available IPs
+		-->
+		<ServerIP>*</ServerIP>
+		<ServerPort>9339</ServerPort>
+		
+		<AutoSendPolicyFile>true</AutoSendPolicyFile>
+		<MaxUserIdleTime>300</MaxUserIdleTime>
+		<MaxSocketIdleTime>60</MaxSocketIdleTime>
+		
+		<!-- Server Variables limits (-1 = unlimited) -->
+		<MaxRoomVars>-1</MaxRoomVars>
+		<MaxUserVars>-1</MaxUserVars>
+		
+		<!-- New since 1.6.3, optimizes user variables size -->
+		<UserVarsOptimization>true</UserVarsOptimization>
+		
+		<AntiFlood active="false">
+			<MinMsgTime tolerance="5">1000</MinMsgTime>
+			<MaxRepeatedMessages>3</MaxRepeatedMessages>
+			<WarningsBeforeKick>2</WarningsBeforeKick>
+			<WarningMessage><![CDATA[No flooding allowed!)]]></WarningMessage>
+			<KickMessage><![CDATA[You've been warned! No flooding! Now you're kicked]]></KickMessage>
+			<BanMessage><![CDATA[Stop Flooding!! You're being banned]]></BanMessage>			
+			<BanAfter timeSpan="1">3</BanAfter>
+		</AntiFlood>
+		
+		<BadWordsFilter active="false">
+			<FilterMode>filter</FilterMode> <!-- REMOVE or FILTER -->
+			<StripCharacters><![CDATA[,.;:_!$%&/#*-+]]></StripCharacters>
+			<Warnings>true</Warnings>
+			<FilterRoomNames>true</FilterRoomNames>
+			<FilterUserNames>true</FilterUserNames>
+			<WarningsBeforeKick>3</WarningsBeforeKick>
+			<WarningMessage><![CDATA[No swearing!)]]></WarningMessage>
+			<KickMessage><![CDATA[You've been warned! No Swearing! Now you're kicked]]></KickMessage>
+			<BanMessage><![CDATA[Stop Swearing! You're being banned!]]></BanMessage>	
+			<BanAfter timeSpan="1">3</BanAfter>
+			
+			<BadWordsList>				
+				<badWord>dickhead</badWord>
+				<badWord>asshole</badWord>
+				<badWord>shithead</badWord>
+				<badWord>shit</badWord>
+				<badWord>fucking</badWord>
+				<badWord>fuck</badWord>
+				<badWord>dickhead</badWord>
+				<badWord>bastard</badWord>
+				<badWord>nigger</badWord>
+				<badWord>idiot</badWord>
+				<badWord>bitch</badWord>
+			</BadWordsList>
+		</BadWordsFilter>
+		
+		<BanCleaning>auto</BanCleaning>
+		<BanDuration>1800</BanDuration> <!-- 30 min -->
+		<BannedLoginMessage>You have been banned!</BannedLoginMessage>
+		
+		<OutQueueThreads>1</OutQueueThreads>
+		<ExtHandlerThreads>1</ExtHandlerThreads>
+		<MaxWriterQueue>50</MaxWriterQueue>
+		
+		<!-- 
+			New since 1.6.0 
+			Set the client queue size and the max. allowed dropped packets
+		-->
+		<ClientMessagQueue>
+			<QueueSize>100</QueueSize>
+			<MaxAllowedDroppedPackets>10</MaxAllowedDroppedPackets>
+		</ClientMessagQueue>
+		
+		<MaxIncomingQueue>5000</MaxIncomingQueue>
+		<DeadChannelsPolicy>strict</DeadChannelsPolicy>
+		<MaxMsgLen>4096</MaxMsgLen>
+		
+		<LogMaxSize>5000000</LogMaxSize>
+		<LogMaxFiles>5</LogMaxFiles>
+		
+		<!--
+			Available options are:
+			
+			FINEST
+			FINER
+			FINE
+			CONFIG
+			INFO
+			WARNING
+			SEVERE
+
+		-->
+		<FileLoggingLevel>INFO</FileLoggingLevel>
+		<ConsoleLoggingLevel>INFO</ConsoleLoggingLevel>	
+		
+		<!-- Adminisitrator login -->
+		<AdminLogin>sfs_admin</AdminLogin>
+		<AdminPassword>sfs_pass</AdminPassword>
+		
+		<!-- Allowed administrator IP addresses -->
+		<AdminAllowedAddresses>
+			<AllowedAddress>127.0.0.1</AllowedAddress>
+		</AdminAllowedAddresses>
+		
+		<!-- Allow remote debugging of extensions -->
+		<ExtensionRemoteDebug>true</ExtensionRemoteDebug>
+		
+		<!-- 
+			Allow global autoreload of extensions upon file save 
+			You should specify in each Zone if the autoreload is enabled.
+		-->
+		<AutoReloadExtensions>true</AutoReloadExtensions>
+		
+		<ExtensionRemoteDebug>true</ExtensionRemoteDebug>
+		
+		<IpFilter>0</IpFilter>
+		
+		<Mailer>
+			<MailHost>test.mail.com</MailHost>
+			<MailUser>foo</MailUser>
+			<MailPass>bar</MailPass>
+			<SmtpPort>25</SmtpPort>
+			<WorkerThreads>1</WorkerThreads>
+		</Mailer>
+		
+		<!-- Enable / Disable remote zone info -->
+		<EnableZoneInfo>false</EnableZoneInfo>
+		
+		<!-- Enable / Disable embedded webserver -->
+		<WebServer active="true">
+			<CfgFile>webserver/cfg/jetty.xml</CfgFile>
+		</WebServer>
+		
+		<!--  raw custom protocol separator --> 
+		<RawProtocolSeparator><![CDATA[%]]></RawProtocolSeparator>
+		
+		<!-- Enable NPCs -->
+		<EnableNPC>true</EnableNPC>
+		
+		<!-- Use concurrent map for properties objects -->
+		<DynamicPropertiesClass>java.util.concurrent.ConcurrentHashMap</DynamicPropertiesClass>
+		
+		<!-- Send a message to client, on wrong Zone. DISABLE THIS ONE IN PRODUCTION
+		<WarnOnWrongZoneRequest><![CDATA[Invalid zone: %s]]></WarnOnWrongZoneRequest>
+		-->
+	</ServerSetup>
+	<Zones>	
+	
+        <Zone name="cocolani" maxUsers="999" customLogin="true" emptyNames="false" isMod="true" uCountUpdate="true">
+
+			<BuddyList active="true">
+				<mode>advanced</mode>
+				<size>20</size>
+				<maxBuddyVars>10</maxBuddyVars>
+				<addBuddyPermission>true</addBuddyPermission>
+				<permissionTimeOut>20</permissionTimeOut>
+				<mutualAddBuddy>true</mutualAddBuddy>
+				<mutualRemoveBuddy>true</mutualRemoveBuddy>
+			</BuddyList>
+
+			<Rooms>
+			<Room name="Welcome" autoJoin="true">
+				<File></File> <!-- No SWF for lobby -->
+			<Tribe>0</Tribe>
+			</Room>
+			<Room name="Jungle">
+			<File>jungle1.swf</File>
+			<Tribe>1</Tribe>
+			</Room>
+
+			<Room name="Jungle Room 2">
+			<File>jungle2.swf</File>
+			<Tribe>1</Tribe>
+			<Extension name="jungle_temple" className="jungle_temple.as" type="script" />
+			</Room>
+			<Room name="Jungle Bridge">
+			<File>jungle3.swf</File>
+			<Tribe>1</Tribe>
+			
+			</Room>
+			<Room name="Jungle Temple">
+			<File>jungle_temple.swf</File>
+			<Tribe>1</Tribe>
+			<Extension name="jungle_temple" className="jungle_temple.as" type="script" />
+			</Room>
+
+			<Room name="Jungle Corridor 1">
+			<File>jungle_temple_corridor1.swf</File>
+			<Tribe>1</Tribe>
+			</Room>
+			<Room name="Jungle Corridor 2">
+			<File>jungle_temple_corridor2.swf</File>
+			<Tribe>1</Tribe>
+			</Room>
+			<Room name="Jungle Centre">
+
+			<File>jungle_village.swf</File>
+			<Tribe>1</Tribe>
+			</Room>
+			<Room name="Jungle Furniture">
+			<File>jungle_furniturestore.swf</File>
+			<Tribe>1</Tribe>
+			</Room>
+			<Room name="GamesRoom">
+				<Extension name="gamesRoom" className="gamesRoom.as" type="script" />
+				<Extension name="nav" className="main.as" type="script" />
+			</Room>
+
+			<Room name="Jungle Pathway 1">
+			<File>jungle_path1.swf</File>
+			<Tribe>1</Tribe>
+			</Room>
+			<Room name="Jungle Pathway 2">
+			<File>jungle_path2.swf</File>
+			<Tribe>1</Tribe>
+			</Room>
+			<Room name="Jungle Swimming">
+			<File>jungle_leisure.swf</File>
+			<Tribe>1</Tribe>
+			<Extension name="raceController" className="raceController.as" type="script" />
+			</Room>
+			<Room name="Volcano Bridge" autoJoin="false">
+			<File>volcano_bridge.swf</File>
+			<Tribe>2</Tribe>
+			<Extension name="nav" className="main.as" type="script" />
+			</Room>
+			<Room name="Volcano Centre">
+			<File>volcano_village.swf</File>
+			<Tribe>2</Tribe>
+
+			</Room>
+			<Room name="Volcano Pathway 1">
+			<File>volcano_path1.swf</File>
+			<Tribe>2</Tribe>
+			</Room>
+			<Room name="Volcano Pathway 2">
+			<File>volcano_path2.swf</File>
+			<Tribe>2</Tribe>
+			</Room>
+			<Room name="Transition">
+			</Room>
+			<Room name="Volcano Leisure">
+			<File>volcano_leisure.swf</File>
+			<Tribe>2</Tribe>
+			<Extension name="raceController" className="raceController.as" type="script" />
+			</Room>
+			<Room name="Volcano Junkyard 1">
+			<File>volcano_junkyard1.swf</File>
+
+			<Tribe>2</Tribe>
+			</Room>
+			<Room name="Volcano Junkyard 2">
+			<File>volcano_junkyard2.swf</File>
+			<Tribe>2</Tribe>
+			</Room>
+			<Room name="Volcano Tunnel 1">
+			<File>volcano_tunnel1.swf</File>
+			<Tribe>2</Tribe>
+
+			</Room>
+			<Room name="Volcano Tunnel 2">
+			<File>volcano_tunnel2.swf</File>
+			<Tribe>2</Tribe>
+			</Room>
+			<Room name="Volcano Tunnel 3">
+			<File>volcano_tunnel3.swf</File>
+			<Tribe>2</Tribe>
+			</Room>
+
+			<Room name="Volcano Tunnel 4">
+			<File>volcano_tunnel4.swf</File>
+			<Tribe>2</Tribe>
+			</Room>
+			<Room name="Volcano Tunnel 5">
+			<File>volcano_tunnel5.swf</File>
+			<Tribe>2</Tribe>
+			</Room>
+			<Room name="Volcano Temple 1">
+
+			<File>volcano_temple1.swf</File>
+			<Tribe>2</Tribe>
+			</Room>
+			<Room name="Volcano Temple 2">
+			<File>volcano_temple2.swf</File>
+			<Tribe>2</Tribe>
+			</Room>
+			<Room name="Volcano Mountain 1">
+			<File>volcano_mountain1.swf</File>
+
+			<Tribe>2</Tribe>
+			</Room>
+			<Room name="Volcano Mountain 2">
+			<File>volcano_mountain2.swf</File>
+			<Tribe>2</Tribe>
+			</Room>
+			<Room name="Volcano Mountain 3">
+			<File>volcano_mountain3.swf</File>
+			<Tribe>2</Tribe>
+
+			</Room>
+			<Room name="Volcano Mountain 4">
+			<File>volcano_mountain4.swf</File>
+			<Tribe>2</Tribe>
+			</Room>
+			<Room name="Volcano Mountain 5">
+			<File>volcano_mountain5.swf</File>
+			<Tribe>2</Tribe>
+			</Room>
+
+			<Room name="Battle Zone1">
+			<File>noman_midbridge.swf</File>
+			</Room>
+			<Room name="Volcano Furniture">
+			<File>volcano_furniture.swf</File>
+			<Tribe>2</Tribe>
+			</Room>
+			<Room name="Tutorial Island1">
+				<File>tutorial_island.swf</File>
+			</Room>
+			<Room name="Summer Beach">
+				<File>noman_summerbeach.swf</File>
+			</Room>
+			<Room name="Marbles Game">
+				<File>noman_marbles.swf</File>
+			</Room>
+			<Room name="Backgammon Room">
+				<Access>0</Access>
+			</Room>
+			<Room name="Connect4 Room">
+				<Access>0</Access>
+			</Room>
+			<Room name="Jungle Pathway 3">
+			<File>jungle_path3.swf</File>
+			<Tribe>1</Tribe>
+			</Room>
+			<Room name="Jungle Pathway 4">
+			<File>jungle_path4.swf</File>
+
+			<Tribe>1</Tribe>
+			</Room>
+			<Room name="Jungle Pathway 5">
+			<File>jungle_path5.swf</File>
+			<Tribe>1</Tribe>
+			</Room>
+			<Room name="Jungle Pathway 6">
+			<File>jungle_path6.swf</File>
+			<Tribe>1</Tribe>
+
+			</Room>
+			<Room name="Jungle Pathway 7">
+			<File>jungle_path7.swf</File>
+			<Tribe>1</Tribe>
+			</Room>
+			<Room name="Jungle Turn">
+			<File>jungle_turn.swf</File>
+			<Tribe>1</Tribe>
+			</Room>
+
+			<Room name="Jungle Lighthouse">
+			<File>jungle_lighthouse.swf</File>
+			<Tribe>1</Tribe>
+			</Room>
+			<Room name="Jungle Corridor 4">
+			<File>jungle_temple_corridor4.swf</File>
+			<Tribe>1</Tribe>
+			</Room>
+			<Room name="Jungle Corridor 3">
+
+			<File>jungle_temple_corridor3.swf</File>
+			<Tribe>1</Tribe>
+			</Room>
+			<Room name="Jungle Spare 1">
+			<Tribe>1</Tribe>
+			</Room>
+			<Room name="Test Sandbox">
+				<File>testSandbox.swf</File>
+			<Tribe>1</Tribe>
+			</Room>
+			<Room name="Jungle Leisure Outlet">
+				<File>jungle_leisure_outlet.swf</File>
+			<Tribe>1</Tribe>
+			</Room>			
+		</Rooms>
+			
+			<Extensions>
+				<extension name="cocolani" className="cocolani/src/cocolani.as" type="script" />
+				<extension name="gameManager" className="cocolani/src/gameManager.as" type="script" />
+				<extension name="main" className="cocolani/src/main.as" type="script" />
+				<extension name="admin" className="cocolani/src/admin.as" type="script" />
+				<extension name="home" className="cocolani/src/home.as" type="script" />
+				<extension name="nav" className="cocolani/src/main.as" type="script" />
+				<extension name="puzzle_handler" className="cocolani/src/puzzle_handler.as" type="script" />
+				<extension name="jungle_temple" className="cocolani/src/jungle_temple.as" type="script" />
+				<extension name="battleGame1" className="cocolani/src/battleGame1.as" type="script" />
+				<extension name="gamesRoom" className="cocolani/src/gamesRoom.as" type="script" />
+			    <extension name="raceController" className="cocolani/src/raceController.as" type="script" />
+
+			</Extensions>
+			
+            <DatabaseManager active="true">
+                <Driver>com.mysql.jdbc.Driver</Driver>
+                <ConnectionString>jdbc:mysql://localhost:3306/cocolani_battle?useUnicode=true&amp;characterEncoding=UTF-8</ConnectionString>
+                <UserName>root</UserName>
+                <Password></Password>
+                <TestSQL>SELECT NOW()</TestSQL>
+                <MaxActive>10</MaxActive>
+                <MaxIdle>10</MaxIdle>
+                <OnExhaustedPool>fail</OnExhaustedPool>
+                <BlockTime>5000</BlockTime>
+            </DatabaseManager>
+
+
+		</Zone>
+		
+	
+	</Zones>
+	
+	
+</SmartFoxConfig>
