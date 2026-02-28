@@ -1161,7 +1161,7 @@ CREATE TABLE IF NOT EXISTS `cc_user` (
   `pzl` varchar(255) DEFAULT '',
   `level` varchar(255) DEFAULT '1',
   `dotutorial` varchar(255) DEFAULT '0',
-  `prefs` text,
+  `prefs` text NOT NULL DEFAULT '',
   `mgam` varchar(255) DEFAULT '0',
   `gam` varchar(255) DEFAULT '0',
   `swear` varchar(255) DEFAULT '0',
