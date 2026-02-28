@@ -13,6 +13,12 @@ You need SmartFoxServer PRO version 1.6.6.
 You can find archived copies at:
 - https://www.smartfoxserver.com (A free version has a limit of 20 connected clients, but you can bypass that..)
 
+### MySQL Connector/J for Smart Fox Server
+  If you don't have it then download it from here: https://dev.mysql.com/downloads/connector/j/
+  select version mysql-connector-java-5.1.49 and platform should be "Platform Independent"
+  then put it inside ``SmartFoxServerPRO_1.6.6\Server\lib``
+
+
 ### XAMPP (Old Version)
 
 The game PHP code requires an old version of XAMPP to match the original environment.
