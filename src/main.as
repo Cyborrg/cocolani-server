@@ -420,16 +420,16 @@ function handleRequest(cmd, params, user, fromRoom)
 		var storeVal     = null;
 		var weaponFormat = false;
 
-		if      (locID == 15) { storeCol = "H_ClothStore"; storeVal = "15"; }
+		if (shopType == "weapons")
+		{
+			storeCol = "weaponStore"; storeVal = "-1"; weaponFormat = true;
+		}
+		else if (locID == 15) { storeCol = "H_ClothStore"; storeVal = "15"; }
 		else if (locID == 35) { storeCol = "H_FurnStore";  storeVal = "35"; }
 		else if (locID ==  9) { storeCol = "Y_FurnStore";  storeVal = "9";  }
 		else if (locID == 36) { storeCol = "tutStore";     storeVal = "36"; }
 		else if (locID == -1) { storeCol = "weaponStore";  storeVal = "-1"; weaponFormat = true; }
-		else if (locID ==  8)
-		{
-			if (shopType == "weapons") { storeCol = "weaponStore";  storeVal = "-1"; weaponFormat = true; }
-			else                       { storeCol = "Y_ClothStore"; storeVal = "8"; }
-		}
+		else if (locID ==  8) { storeCol = "Y_ClothStore"; storeVal = "8"; }
 
 		var invlist = "";
 		if (storeCol != null)
