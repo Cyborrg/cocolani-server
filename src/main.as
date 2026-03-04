@@ -622,7 +622,8 @@ function handleRequest(cmd, params, user, fromRoom)
 			if (parts[0] == String(itemObjId))
 			{
 				foundIdx = i;
-				curLvl   = Number(parts[8]);
+				var lvlRaw = String(parts[8]);
+				curLvl = Number(lvlRaw.indexOf(":") != -1 ? lvlRaw.split(":")[0] : lvlRaw);
 				break;
 			}
 		}
@@ -829,6 +830,7 @@ function buildInvStringFromObjId(objId)
 	var exch = row.getItem("exchange");
 	var kind = row.getItem("kind");
 	var lvl  = row.getItem("lvl");
+	if (String(lvl).indexOf(":") != -1) lvl = String(lvl).split(":")[0];
 	return oid+"~"+oid+"~"+swf+"~"+desc+"~"+name+"~"+type+"~"+exch+"~"+kind+"~"+lvl;
 }
 
