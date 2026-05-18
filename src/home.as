@@ -823,7 +823,11 @@ function buildInteriorFrn(homeAddr, tribeId)
    if (qrHid != null && qrHid.size() > 0)
       realHomeId = Number(qrHid.get (0).getItem("ID"));
 
-   var sql = "SELECT * FROM cc_homes_furniture WHERE home_id=" + realHomeId;
+
+   var sql = "SELECT f.id, f.item_id, i.swfID, f.x_pos, f.y_pos, f.rotation, f.is_wall" +
+             " FROM cc_homes_furniture f" +
+             " LEFT JOIN cc_invlist i ON i.objID = f.item_id" +
+             " WHERE f.home_id=" + realHomeId;
 
    var qr = dbase.executeQuery(sql);
 
@@ -837,7 +841,9 @@ function buildInteriorFrn(homeAddr, tribeId)
 
          var fId = row.getItem("id");
 
-         var itemId = row.getItem("item_id");
+         var swfIdForFrn = row.getItem("swfID");
+         if (swfIdForFrn == null || swfIdForFrn == "")
+            swfIdForFrn = row.getItem("item_id"); // fallback
 
          var x = row.getItem("x_pos");
 
@@ -847,7 +853,7 @@ function buildInteriorFrn(homeAddr, tribeId)
 
          var sub = row.getItem("is_wall");
 
-         parts.push(fId + "," + itemId + "," + x + "," + y + "," + rot + "," + sub);
+         parts.push(fId + "," + swfIdForFrn + "," + x + "," + y + "," + rot + "," + sub);
 
       }
    }
@@ -1498,6 +1504,8 @@ function cmdDropFurniture(user, room, params)
    var qrUser = dbase.executeQuery(sqlUser);
 
    var hasItem = false;
+   var itemOid  = null;
+   var itemSwfId = null;
 
    if (qrUser != null && qrUser.size() > 0)
    {
@@ -1516,6 +1524,8 @@ function cmdDropFurniture(user, room, params)
             if (!hasItem && subParts[0] == String(fid))
             {
                hasItem = true;
+               itemOid   = (subParts.length > 1 && subParts[1] != "") ? subParts[1] : String(fid);
+               itemSwfId = (subParts.length > 2 && subParts[2] != "") ? subParts[2] : itemOid;
 
             }
             else
@@ -1532,6 +1542,8 @@ function cmdDropFurniture(user, room, params)
 
             dbase.executeCommand(sqlUpd);
 
+            dbase.executeCommand("DELETE FROM cc_inv WHERE id=" + fid);
+
          }
       }
    }
@@ -1542,10 +1554,10 @@ function cmdDropFurniture(user, room, params)
 
    }
 
-   // Fetch subtype (kind) from cc_invlist
+   // Fetch subtype (kind) from cc_invlist using the item's object definition ID
    var subtype = 0;
 
-   var sqlItem = "SELECT kind FROM cc_invlist WHERE objID=" + fid;
+   var sqlItem = "SELECT kind FROM cc_invlist WHERE objID=" + (itemOid != null ? itemOid : fid);
 
    var qrItem = dbase.executeQuery(sqlItem);
 
@@ -1558,11 +1570,11 @@ function cmdDropFurniture(user, room, params)
 
    }
 
-   var sqlInsert = "INSERT INTO cc_homes_furniture (home_id, item_id, x_pos, y_pos, rotation, is_wall) VALUES (" + realDrpHomeId + ", " + fid + ", " + x + ", " + y + ", " + rot + ", " + subtype + ")";
+   var sqlInsert = "INSERT INTO cc_homes_furniture (home_id, item_id, x_pos, y_pos, rotation, is_wall) VALUES (" + realDrpHomeId + ", " + (itemOid != null ? itemOid : fid) + ", " + x + ", " + y + ", " + rot + ", " + subtype + ")";
 
    dbase.executeCommand(sqlInsert);
 
-   var sqlId = "SELECT MAX(id) as mx FROM cc_homes_furniture WHERE home_id=" + realDrpHomeId + " AND item_id=" + fid;
+   var sqlId = "SELECT MAX(id) as mx FROM cc_homes_furniture WHERE home_id=" + realDrpHomeId + " AND item_id=" + (itemOid != null ? itemOid : fid);
 
    var qrId = dbase.executeQuery(sqlId);
 
@@ -1574,7 +1586,8 @@ function cmdDropFurniture(user, room, params)
 
    }
 
-   var frnItem = instId + "," + fid + "," + x + "," + y + "," + rot + "," + subtype;
+
+   var frnItem = instId + "," + (itemSwfId != null ? itemSwfId : itemOid) + "," + x + "," + y + "," + rot + "," + subtype;
 
    var frnStr = buildInteriorFrn(homeAddr, roomTribe);
 
@@ -1588,9 +1601,14 @@ function cmdDropFurniture(user, room, params)
 
    resObj.frn = frnItem;
 
-   resObj.id = String(fid);
+   resObj.id = String(itemSwfId != null ? itemSwfId : itemOid);
 
    _server.sendResponse(resObj, -1, null, room.getAllUsers());
+
+   var resDinv = {};
+   resDinv._cmd = "dinv";
+   resDinv.id   = String(fid);
+   _server.sendResponse(resDinv, -1, null, [user]);
 
 }
 
@@ -1713,7 +1731,12 @@ function cmdGetFurniture(user, room, params)
 
       var lvl = row.getItem("lvl");
 
-      var invStr = objectID + "~" + objectID + "~" + SwfID + "~" + objectName + "~" + description + "~" + ObjectType + "~" + Exchange + "~" + kind + "~" + lvl;
+      var dbase2 = _server.getDatabaseManager();
+      var dbUserId = getDbUserId(user);
+      var newIid = Math.floor(Math.random() * 2000000000) + 1;
+      dbase2.executeCommand("INSERT INTO `cc_inv` (`ID`, `user_id`, `active`) VALUES (" + newIid + ", '" + _server.escapeQuotes(String(dbUserId)) + "', '" + _server.escapeQuotes(String(objectID)) + "')");
+
+      var invStr = newIid + "~" + objectID + "~" + SwfID + "~" + description + "~" + objectName + "~" + ObjectType + "~" + Exchange + "~" + kind + "~" + lvl;
 
       var sqlUser = "SELECT inventory FROM cc_user WHERE username='" + _server.escapeQuotes(user.getName()) + "'";
 

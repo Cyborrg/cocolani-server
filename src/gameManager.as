@@ -373,7 +373,7 @@ function handleRequest(cmd, params, user, fromRoom)
 			{
 				if (rw.item_obj_id != null)
 				{
-					var rwItem = buildInvStringFromObjId(rw.item_obj_id);
+					var rwItem = insertInvItem(username, rw.item_obj_id);
 					if (rwItem != null)
 					{
 						prevInv = appendToInventory(prevInv, rwItem);
@@ -624,11 +624,12 @@ function appendToInventory(store, item)
 
 // ---------------------------------------------------------
 // Helper: build inventory string from cc_invlist by objID
-// Returns: "objID~objID~swfID~desc~name~type~exchange~kind~lvl"
+// Returns: "iid~oid~swfID~desc~name~type~exchange~kind~lvl"
 // ---------------------------------------------------------
-function buildInvStringFromObjId(objId)
+function buildInvStringFromObjId(objId, iid)
 {
 	if (objId == null || objId == "") return null;
+	if (iid == null || iid == undefined) iid = objId;
 	var res = dbSelect("cc_invlist", ["objID","swfID","name","description","type","exchange","kind","lvl"], {objID: objId});
 	if (res == null || res.size() == 0) return null;
 	var row = res.get(0);
@@ -640,7 +641,31 @@ function buildInvStringFromObjId(objId)
 	var exch = row.getItem("exchange");
 	var kind = row.getItem("kind");
 	var lvl  = row.getItem("lvl");
-	return oid + "~" + oid + "~" + swf + "~" + desc + "~" + name + "~" + type + "~" + exch + "~" + kind + "~" + lvl;
+	return iid + "~" + oid + "~" + swf + "~" + desc + "~" + name + "~" + type + "~" + exch + "~" + kind + "~" + lvl;
+}
+
+// ---------------------------------------------------------
+// ---------------------------------------------------------
+// Helper: generate a unique inventory instance ID in code.
+// ---------------------------------------------------------
+function nextIid()
+{
+	return Math.floor(Math.random() * 2000000000) + 1;
+}
+
+// ---------------------------------------------------------
+// Helper: insert an item into cc_inv for a user, then build
+// and return the inventory string with the generated iid.
+// ---------------------------------------------------------
+function insertInvItem(username, objId)
+{
+	if (objId == null || objId == "") return null;
+	var dbUserId = dbGetUserField(username, "ID");
+	if (dbUserId == null) return null;
+	var iid = nextIid();
+	var dbase = _server.getDatabaseManager();
+	dbase.executeCommand("INSERT INTO `cc_inv` (`ID`, `user_id`, `active`) VALUES (" + iid + ", '" + dbEscape(dbUserId) + "', '" + dbEscape(objId) + "')");
+	return buildInvStringFromObjId(objId, iid);
 }
 
 // ---------------------------------------------------------

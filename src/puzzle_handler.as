@@ -174,6 +174,30 @@ function removeFromInventory(store, objID)
 }
 
 // ---------------------------------------------------------
+// Helper: Remove first item matching oid ([1]) from inventory string
+// Returns {found: bool, newStore: string, iid: string}
+// ---------------------------------------------------------
+function removeFromInventoryByOid(store, oid)
+{
+	var result = {found: false, newStore: store, iid: null};
+	var storeStr = "" + store + "";
+	var arr = storeStr.split("|");
+	for (var i = 0; i < arr.length; i++)
+	{
+		var parts = arr[i].split("~");
+		if (parts.length > 1 && parts[1] == String(oid))
+		{
+			result.iid     = parts[0];
+			arr.splice(i, 1);
+			result.newStore = arr.join("|");
+			result.found    = true;
+			break;
+		}
+	}
+	return result;
+}
+
+// ---------------------------------------------------------
 // Helper: Append a value to a comma-separated string
 // ---------------------------------------------------------
 function appendToList(existing, value)
@@ -193,11 +217,12 @@ function appendToInventory(store, item)
 
 // ---------------------------------------------------------
 // Helper: Build inventory string from cc_invlist by objID
-// Returns: "objID~objID~swfID~description~name~type~exchange~kind~lvl"
+// Returns: "iid~oid~swfID~description~name~type~exchange~kind~lvl"
 // ---------------------------------------------------------
-function buildInvStringFromObjId(objId)
+function buildInvStringFromObjId(objId, iid)
 {
 	if (objId == null || objId == "") return null;
+	if (iid == null || iid == undefined) iid = objId;
 	var res = dbSelect("cc_invlist", ["objID","swfID","name","description","type","exchange","kind","lvl"], {objID: objId});
 	if (res == null || res.size() == 0) return null;
 	var row = res.get(0);
@@ -209,7 +234,30 @@ function buildInvStringFromObjId(objId)
 	var exch = row.getItem("exchange");
 	var kind = row.getItem("kind");
 	var lvl  = row.getItem("lvl");
-	return oid + "~" + oid + "~" + swf + "~" + desc + "~" + name + "~" + type + "~" + exch + "~" + kind + "~" + lvl;
+	return iid + "~" + oid + "~" + swf + "~" + desc + "~" + name + "~" + type + "~" + exch + "~" + kind + "~" + lvl;
+}
+
+// ---------------------------------------------------------
+// ---------------------------------------------------------
+// Helper: generate a unique inventory instance ID in code.
+// ---------------------------------------------------------
+function nextIid()
+{
+	return Math.floor(Math.random() * 2000000000) + 1;
+}
+
+// ---------------------------------------------------------
+// Helper: insert an item into cc_inv for a user, then build
+// ---------------------------------------------------------
+function insertInvItem(username, objId)
+{
+	if (objId == null || objId == "") return null;
+	var dbUserId = dbGetUserField(username, "ID");
+	if (dbUserId == null) return null;
+	var iid = nextIid();
+	var dbase = _server.getDatabaseManager();
+	dbase.executeCommand("INSERT INTO `cc_inv` (`ID`, `user_id`, `active`) VALUES (" + iid + ", '" + dbEscape(dbUserId) + "', '" + dbEscape(objId) + "')");
+	return buildInvStringFromObjId(objId, iid);
 }
 
 // ---------------------------------------------------------
@@ -386,12 +434,24 @@ function handleRequest(cmd, params, user, fromRoom, protocol) {
 		trace("botCfg: bot_id=" + botCfg.bot_id + " type=" + botCfg.bot_type + " prize=" + botCfg.prize_obj_id + " money=" + botCfg.money_reward);
 
 		
+		var itemIid = String(params.id);
+		var itemOid = null;
+		var _botInvArr = String(store).split("|");
+		for (var _bi = 0; _bi < _botInvArr.length; _bi++) {
+			var _bp = _botInvArr[_bi].split("~");
+			if (_bp.length > 1 && _bp[0] == itemIid) { itemOid = _bp[1]; break; }
+		}
+		if (itemOid == null) {
+			trace("[BOT_give] item iid=" + itemIid + " not found in inventory of " + username);
+			return;
+		}
+
 		var botItems   = loadBotItems(params.botid);
 		var needsStr   = buildNeedsString(botItems);
-		var invResult  = removeFromInventory(store, params.id);
+		var invResult  = removeFromInventory(store, itemIid);
 
 		// Get item name from cc_invlist for response
-		var invlistRes = dbSelect("cc_invlist", ["name", "description"], {objID: params.id});
+		var invlistRes = dbSelect("cc_invlist", ["name", "description"], {objID: itemOid});
 		var namee = "";
 		if (invlistRes != null && invlistRes.size() > 0)
 		{
@@ -401,7 +461,7 @@ function handleRequest(cmd, params, user, fromRoom, protocol) {
 		// --- Simple bot ---
 		if (botCfg.bot_type == "simple")
 		{
-			if (invtrick.indexOf("," + params.id) != -1)
+			if (invtrick.indexOf("," + itemOid) != -1)
 			{
 				// did i already got this?
 				var resp = {};
@@ -410,16 +470,16 @@ function handleRequest(cmd, params, user, fromRoom, protocol) {
 				resp.nowant = "0";
 				_server.sendResponse(resp, -1, null, [user], "xml");
 			}
-			else if (needsStr.indexOf("," + params.id + ",") != -1 && invtrick.indexOf("," + params.id) == -1)
+			else if (needsStr.indexOf("," + itemOid + ",") != -1 && invtrick.indexOf("," + itemOid) == -1)
 			{
 				// is this useful?
-				var addin = appendToList(invars, params.id);
+				var addin = appendToList(invars, itemOid);
 				
 				var resp = {};
 				resp._cmd = "sceneRep";
 				resp.sub = "puz";
 				resp.invvar = addin;
-				resp.di = params.id;
+				resp.di = itemOid;
 				resp.nw = "1";
 				resp.win = "1";
 				resp.botid = params.botid;
@@ -430,7 +490,7 @@ function handleRequest(cmd, params, user, fromRoom, protocol) {
 				// Simple bots: always remove from inventory and give reward
 				var resp = {};
 				resp._cmd = "dinv";
-				resp.id = params.id;
+				resp.id = itemIid;
 				_server.sendResponse(resp, -1, null, [user], "xml");
 
 				if (invResult.found)
@@ -445,7 +505,7 @@ function handleRequest(cmd, params, user, fromRoom, protocol) {
 		// --- Complex bot ---
 		if (botCfg.bot_type == "complex")
 		{
-			if (needsStr.indexOf("," + params.id + ",") == -1)
+			if (needsStr.indexOf("," + itemOid + ",") == -1)
 			{
 				// is this useful?
 				var resp = {};
@@ -454,7 +514,7 @@ function handleRequest(cmd, params, user, fromRoom, protocol) {
 				resp.nowant = "1";
 				_server.sendResponse(resp, -1, null, [user], "xml");
 			}
-			else if (invtrick1.indexOf("," + params.id + ",") != -1)
+			else if (invtrick1.indexOf("," + itemOid + ",") != -1)
 			{
 				// did i already got this?
 				var resp = {};
@@ -463,20 +523,20 @@ function handleRequest(cmd, params, user, fromRoom, protocol) {
 				resp.keep = "1";
 				_server.sendResponse(resp, -1, null, [user], "xml");
 			}
-			else if (needsStr.indexOf("," + params.id + ",") != -1 && invtrick1.indexOf("," + params.id + ",") == -1)
+			else if (needsStr.indexOf("," + itemOid + ",") != -1 && invtrick1.indexOf("," + itemOid + ",") == -1)
 			{
 				// is this useful?
 				if (invResult.found)
 				{
 					var resp = {};
 					resp._cmd = "dinv";
-					resp.id = params.id;
+					resp.id = itemIid;
 					_server.sendResponse(resp, -1, null, [user], "xml");
 
 					dbSaveUserField(username, "inventory", invResult.newStore);
 				}
 
-				var addin = appendToList(invars, params.id);
+				var addin = appendToList(invars, itemOid);
 				dbSaveUserField(username, "invars", addin);
 
 				// read invars after save to check completion
@@ -509,7 +569,7 @@ function handleRequest(cmd, params, user, fromRoom, protocol) {
 					resp._cmd = "sceneRep";
 					resp.sub = "puz";
 					resp.invvar = addin;
-					resp.di = params.id;
+					resp.di = itemOid;
 					resp.win = "1";
 					resp.nw = "1";
 					resp.botid = params.botid;
@@ -517,7 +577,7 @@ function handleRequest(cmd, params, user, fromRoom, protocol) {
 					_server.sendResponse(resp, -1, null, [user], "xml");
 
 					var prizeObjId = botCfg.prize_obj_id;
-					var reward = buildInvStringFromObjId(prizeObjId);
+					var reward = insertInvItem(username, prizeObjId);
 					if (reward == null) { trace("[BOT_give] prize item not found for objId: " + prizeObjId); return; }
 
 					var resp = {};
@@ -540,7 +600,7 @@ function handleRequest(cmd, params, user, fromRoom, protocol) {
 				{
 					var resp = {};
 					resp._cmd = "sceneRep";
-					resp.di = params.id;
+					resp.di = itemOid;
 					resp.sub = "puz";
 					resp.botid = params.botid;
 					resp.nm = namee;
@@ -557,7 +617,24 @@ function handleRequest(cmd, params, user, fromRoom, protocol) {
 	// =============================================================
 	if (cmd == "pzl") {
 
-		var invResult = removeFromInventory(store, params.id);
+		var pzlItemIid = String(params.id);
+		var pzlItemOid = pzlItemIid; 
+		var _pzlArr = String(store).split("|");
+		for (var _pi = 0; _pi < _pzlArr.length; _pi++) {
+			var _pp = _pzlArr[_pi].split("~");
+			if (_pp.length > 1 && _pp[0] == pzlItemIid) { pzlItemOid = _pp[1]; break; }
+		}
+
+		var invResult = removeFromInventory(store, pzlItemIid);
+
+		if (!invResult.found) {
+			var _pzlFb = removeFromInventoryByOid(store, pzlItemIid);
+			if (_pzlFb.found) {
+				pzlItemOid = pzlItemIid;  
+				pzlItemIid = _pzlFb.iid;   
+				invResult  = _pzlFb;
+			}
+		}
 
 		if (invResult.found)
 		{
@@ -565,11 +642,11 @@ function handleRequest(cmd, params, user, fromRoom, protocol) {
 
 			var resp = {};
 			resp._cmd = "dinv";
-			resp.id = params.id;
+			resp.id = pzlItemIid;
 			_server.sendResponse(resp, -1, null, [user], "xml");
 		}
 
-		var addin = appendToList(invars, params.id);
+		var addin = appendToList(invars, pzlItemOid);
 
 		var resp = {};
 		resp._cmd = "sceneRep";
@@ -578,11 +655,11 @@ function handleRequest(cmd, params, user, fromRoom, protocol) {
 
 		dbSaveUserField(username, "invars", addin);
 
-		trace("params.id : " + params.id);
+		trace("params.id : " + pzlItemOid);
 
 		// This fixes a bug from the original server
 		// so any banana OID works on any monkey in the correct room.
-		var pzlId = params.id; // fallback to item id if no mapping
+		var pzlId = pzlItemOid; 
 		var currentRoomName = _server.getCurrentZone().getRoom(fromRoom).getName();
 		var roomPzlRes = dbSelect("cc_monkey_rooms", ["pzl_id"], {room_name: currentRoomName});
 		if (roomPzlRes != null && roomPzlRes.size() > 0)
@@ -593,7 +670,7 @@ function handleRequest(cmd, params, user, fromRoom, protocol) {
 		else
 		{
 			// not a monkey puzzle, try item-based lookup for non-monkey puzzle items
-			var pzlRes = dbSelect("cc_invlist", ["pzl_id"], {objID: params.id});
+			var pzlRes = dbSelect("cc_invlist", ["pzl_id"], {objID: pzlItemOid});
 			if (pzlRes != null && pzlRes.size() > 0)
 			{
 				var pzlVal = pzlRes.get(0).getItem("pzl_id");
@@ -721,7 +798,7 @@ function handleRequest(cmd, params, user, fromRoom, protocol) {
 		if (reward.reward_type == "special_gem")
 		{
 			var removeId = reward.remove_item_obj_id;
-			var invResult = removeFromInventory(store, removeId);
+			var invResult = removeFromInventoryByOid(store, removeId);
 
 			if (invResult.found)
 			{
@@ -729,7 +806,7 @@ function handleRequest(cmd, params, user, fromRoom, protocol) {
 
 				var resp = {};
 				resp._cmd = "dinv";
-				resp.id = "" + removeId;
+				resp.id = "" + invResult.iid;
 				_server.sendResponse(resp, -1, null, [user], "xml");
 
 				var addpzl = appendToList(pvars, theid);
@@ -774,7 +851,7 @@ function handleRequest(cmd, params, user, fromRoom, protocol) {
 		if (reward.reward_type == "item")
 		{
 			var itemObjId = reward.item_obj_id;
-			var item = buildInvStringFromObjId(itemObjId);
+			var item = insertInvItem(username, itemObjId);
 			if (item == null) { trace("[claimreward] item not found for objId: " + itemObjId); return; }
 
 			var resp = {};
@@ -790,13 +867,13 @@ function handleRequest(cmd, params, user, fromRoom, protocol) {
 			{
 				if (reward.remove_item_obj_id != null && reward.remove_item_obj_id != "")
 				{
-					var remResult = removeFromInventory(additem, reward.remove_item_obj_id);
+					var remResult = removeFromInventoryByOid(additem, reward.remove_item_obj_id);
 					if (remResult.found)
 					{
 						additem = remResult.newStore;
 						var resp = {};
 						resp._cmd = "dinv";
-						resp.id = "" + reward.remove_item_obj_id;
+						resp.id = "" + remResult.iid;
 						_server.sendResponse(resp, -1, null, [user], "xml");
 					}
 				}
@@ -833,7 +910,7 @@ function handleRequest(cmd, params, user, fromRoom, protocol) {
 			moneyDB(user, fromRoom, "+", reward.money_amount);
 
 			var itemObjId = reward.item_obj_id;
-			var item = buildInvStringFromObjId(itemObjId);
+			var item = insertInvItem(username, itemObjId);
 			if (item == null) { trace("[claimreward] item not found for objId: " + itemObjId); return; }
 
 			var resp = {};
@@ -903,7 +980,24 @@ function handleRequest(cmd, params, user, fromRoom, protocol) {
 	// =============================================================
 	if (cmd == "pzldrp") {
 
-		var invResult = removeFromInventory(store, params.id);
+		var drpItemIid = String(params.id);
+		var drpItemOid = drpItemIid; 
+		var _drpArr = String(store).split("|");
+		for (var _di2 = 0; _di2 < _drpArr.length; _di2++) {
+			var _dp = _drpArr[_di2].split("~");
+			if (_dp.length > 1 && _dp[0] == drpItemIid) { drpItemOid = _dp[1]; break; }
+		}
+
+		var invResult = removeFromInventory(store, drpItemIid);
+
+		if (!invResult.found) {
+			var _drpFb = removeFromInventoryByOid(store, drpItemIid);
+			if (_drpFb.found) {
+				drpItemOid = drpItemIid;   
+				drpItemIid = _drpFb.iid;   
+				invResult  = _drpFb;
+			}
+		}
 
 		if (invResult.found)
 		{
@@ -911,16 +1005,16 @@ function handleRequest(cmd, params, user, fromRoom, protocol) {
 
 			var resp = {};
 			resp._cmd = "dinv";
-			resp.id = params.id;
+			resp.id = drpItemIid;
 			_server.sendResponse(resp, -1, null, [user], "xml");
 		}
 
-		var addin = appendToList(invars, params.id);
+		var addin = appendToList(invars, drpItemOid);
 		dbSaveUserField(username, "invars", addin);
 
 		var resp = {};
 		resp._cmd = "sceneRep";
-		resp.id = params.id;
+		resp.id = drpItemOid;
 		resp.sub = "puz";
 		resp.invvar = addin;
 		_server.sendResponse(resp, -1, null, [user], "xml");

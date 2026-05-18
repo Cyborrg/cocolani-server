@@ -26,7 +26,7 @@ function handleRequest(cmd, params, user, fromRoom)
 	// ---------------------------------------------------------
 	if (cmd == "wlk")
 	{
-		trace("wlk : " + params.v);
+
 		var v = params.v;
 		if (v != undefined)
 		{
@@ -193,8 +193,6 @@ function handleRequest(cmd, params, user, fromRoom)
 		if (!isValidInt(params.objid)) { trace("BLOCKED: invalid objid"); return; }
 
 		var itemObjId = params.objid;
-		var item      = buildInvStringFromObjId(itemObjId);
-		if (item == null) { trace("[buyINV] item not found: " + itemObjId); return; }
 
 		var priceRow = dbSelect("cc_invlist", ["price", "type", "weaponStore", "H_ClothStore", "Y_ClothStore", "H_FurnStore", "Y_FurnStore"], {objID: itemObjId});
 		if (priceRow == null || priceRow.size() == 0) return;
@@ -225,7 +223,7 @@ function handleRequest(cmd, params, user, fromRoom)
 				var ownArr = ownCheck.inventory.split("|");
 				for (var oi = 0; oi < ownArr.length; oi++)
 				{
-					if (ownArr[oi].split("~")[0] == String(itemObjId))
+					if (ownArr[oi].split("~")[1] == String(itemObjId))
 					{
 						trace("BLOCKED: player already owns weapon " + itemObjId + ", use upgradeINV");
 						return;
@@ -261,6 +259,8 @@ function handleRequest(cmd, params, user, fromRoom)
 		dbSaveUserField(username, "money",     newMoney);
 		dbSaveUserField(username, "happyness", "100");
 
+		var item   = insertInvItem(username, itemObjId);
+		if (item == null) { trace("[buyINV] item not found: " + itemObjId); return; }
 		var newInv = appendToInventory(prevInv, item);
 		dbSaveUserField(username, "inventory", newInv);
 
@@ -289,18 +289,36 @@ function handleRequest(cmd, params, user, fromRoom)
 	{
 		var clthParts  = String(params.clthInvID).split(",");
 		var translated = [];
+		var clthInvStr = dbGetUserField(username, "inventory");
+		var iidToSwf   = {};
+		if (clthInvStr != null && clthInvStr != "")
+		{
+			var ciArr = String(clthInvStr).split("|");
+			for (var k = 0; k < ciArr.length; k++)
+			{
+				var ci = ciArr[k].split("~");
+				if (ci.length >= 3) iidToSwf[ci[0]] = ci[2];
+			}
+		}
 		for (var i = 0; i < clthParts.length; i++)
 		{
 			var p = clthParts[i];
 			if (p != "" && isValidUInt(p))
 			{
-				var rSwf = dbSelect("cc_invlist", ["swfID"], {objID: p});
-				if (rSwf != null && rSwf.size() > 0)
-					translated.push(rSwf.get(0).getItem("swfID"));
+				if (iidToSwf[p] != undefined)
+				{
+					translated.push(iidToSwf[p]);
+				}
 				else
 				{
-					translated.push(p);
-					trace("[setClth] No swfID for objID " + p);
+					var rSwf = dbSelect("cc_invlist", ["swfID"], {objID: p});
+					if (rSwf != null && rSwf.size() > 0)
+						translated.push(rSwf.get(0).getItem("swfID"));
+					else
+					{
+						translated.push(p);
+						trace("[setClth] No swfID for iid " + p);
+					}
 				}
 			}
 			else
@@ -483,7 +501,17 @@ function handleRequest(cmd, params, user, fromRoom)
 		var targetUser = _server.getUserById(Number(params.uid));
 		if (targetUser == null) return;
 
-		var item = buildInvStringFromObjId(params.id);
+		var tradeIid  = String(params.id);
+		var invData   = dbGetUserField(username, "inventory");
+		var invSearch = String(invData || "").split("|");
+		var tradeOid  = null;
+		for (var ti = 0; ti < invSearch.length; ti++)
+		{
+			var tp = invSearch[ti].split("~");
+			if (tp[0] == tradeIid) { tradeOid = tp[1]; break; }
+		}
+		if (tradeOid == null) { trace("BLOCKED: " + username + " does not own iid " + tradeIid); return; }
+		var item = buildInvStringFromObjId(tradeOid, tradeOid);
 		if (item == null) return;
 
 		var itemName   = item.split("~")[4];
@@ -538,7 +566,7 @@ function handleRequest(cmd, params, user, fromRoom)
 			if (!isValidInt(params.id)) { trace("BLOCKED: invalid item id"); return; }
 
 			var itemObjId = Number(params.id);
-			var item      = buildInvStringFromObjId(itemObjId);
+			var item      = insertInvItem(username, itemObjId);
 			if (item == null) return;
 			var itemName  = item.split("~")[4];
 
@@ -562,11 +590,15 @@ function handleRequest(cmd, params, user, fromRoom)
 			_server.sendResponse(resp2, -1, null, [user]);
 
 			var senderData = dbGetUserData(targetUser.getName(), ["inventory"]);
+			var senderItemIid = null;
 			if (senderData != null)
 			{
-				var removal = removeFromInventory(senderData.inventory, String(itemObjId));
+				var removal = removeFromInventoryByOid(senderData.inventory, String(itemObjId));
 				if (removal.found)
+				{
 					dbSaveUserField(targetUser.getName(), "inventory", removal.newStore);
+					senderItemIid = removal.iid;
+				}
 			}
 
 			var resp3  = {};
@@ -579,7 +611,7 @@ function handleRequest(cmd, params, user, fromRoom)
 
 			var resp4  = {};
 			resp4._cmd = "dinv";
-			resp4.id   = itemObjId;
+			resp4.id   = (senderItemIid != null) ? senderItemIid : itemObjId;
 			_server.sendResponse(resp4, -1, null, [targetUser]);
 		}
 	}
@@ -618,8 +650,8 @@ function handleRequest(cmd, params, user, fromRoom)
 		for (var i = 0; i < invArr.length; i++)
 		{
 			var parts = invArr[i].split("~");
-			// parts: [0]=objID [1]=objID [2]=swfID [3]=desc [4]=name [5]=type [6]=exch [7]=kind [8]=lvl
-			if (parts[0] == String(itemObjId))
+			// parts: [0]=iid [1]=objID [2]=swfID [3]=desc [4]=name [5]=type [6]=exch [7]=kind [8]=lvl
+			if (parts[1] == String(itemObjId))
 			{
 				foundIdx = i;
 				var lvlRaw = String(parts[8]);
@@ -792,8 +824,7 @@ function appendToInventory(store, item)
 	return item;
 }
 
-// Remove first occurrence of an item matching objID from
-// pipe-separated inventory string.
+// Remove first occurrence of an item matching iid ([0]) from inventory string.
 // Returns {found: bool, newStore: string}
 function removeFromInventory(store, objID)
 {
@@ -812,11 +843,33 @@ function removeFromInventory(store, objID)
 	return result;
 }
 
+// Remove first occurrence matching oid ([1]) from inventory string.
+// Returns {found: bool, newStore: string, iid: string}
+function removeFromInventoryByOid(store, oid)
+{
+	var result = {found: false, newStore: store, iid: null};
+	var arr    = String(store).split("|");
+	for (var i = 0; i < arr.length; i++)
+	{
+		var parts = arr[i].split("~");
+		if (parts[1] == String(oid))
+		{
+			result.iid      = parts[0];
+			arr.splice(i, 1);
+			result.newStore = arr.join("|");
+			result.found    = true;
+			break;
+		}
+	}
+	return result;
+}
+
 // Build inventory item string from cc_invlist row for objID.
-// Format: objID~objID~swfID~desc~name~type~exchange~kind~lvl
-function buildInvStringFromObjId(objId)
+// Format: iid~oid~swfID~desc~name~type~exchange~kind~lvl
+function buildInvStringFromObjId(objId, iid)
 {
 	if (objId == null || objId == "") return null;
+	if (iid == null || iid == undefined) iid = objId;
 	var res = dbSelect("cc_invlist",
 		["objID", "swfID", "name", "description", "type", "exchange", "kind", "lvl"],
 		{objID: objId});
@@ -831,7 +884,31 @@ function buildInvStringFromObjId(objId)
 	var kind = row.getItem("kind");
 	var lvl  = row.getItem("lvl");
 	if (String(lvl).indexOf(":") != -1) lvl = String(lvl).split(":")[0];
-	return oid+"~"+oid+"~"+swf+"~"+desc+"~"+name+"~"+type+"~"+exch+"~"+kind+"~"+lvl;
+	return iid+"~"+oid+"~"+swf+"~"+desc+"~"+name+"~"+type+"~"+exch+"~"+kind+"~"+lvl;
+}
+
+// ---------------------------------------------------------
+// ---------------------------------------------------------
+// Helper: generate a unique inventory instance ID in code.
+// ---------------------------------------------------------
+function nextIid()
+{
+	return Math.floor(Math.random() * 2000000000) + 1;
+}
+
+// ---------------------------------------------------------
+// Helper: insert an item into cc_inv for a user, then build
+// and return the inventory string with the generated iid.
+// ---------------------------------------------------------
+function insertInvItem(username, objId)
+{
+	if (objId == null || objId == "") return null;
+	var dbUserId = dbGetUserField(username, "ID");
+	if (dbUserId == null) return null;
+	var iid = nextIid();
+	var dbase = _server.getDatabaseManager();
+	dbase.executeCommand("INSERT INTO `cc_inv` (`ID`, `user_id`, `active`) VALUES (" + iid + ", '" + dbEscape(dbUserId) + "', '" + dbEscape(objId) + "')");
+	return buildInvStringFromObjId(objId, iid);
 }
 
 // =========================================================
