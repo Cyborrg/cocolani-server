@@ -6,6 +6,8 @@
 // Client auth: MD5( secretKey + salt + storedPassword )
 // getPristine() decodes "dpsBtbcsOJso5oWRZvEy" by char-1 = "corAsabrNIrn4nVQYuDx"
 var salt = "corAsabrNIrn4nVQYuDx";
+var moderator = 7;
+var superModerator = 8;
 
 
 function init()
@@ -183,7 +185,7 @@ function handleInternalEvent(evt)
 		var u        = _server.instance.getUserByChannel(chan);
 		var statusID = Number(row.getItem("status_ID"));
 
-		if (statusID == 7 || statusID == 8)
+		if (statusID == moderator || statusID == superModerator)
 			user.setAsModerator(true);
 
 		var isMod = user.isModerator();
