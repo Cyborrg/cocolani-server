@@ -551,10 +551,14 @@ function processResults(battle)
 
 	var tribe2Alive = 0;
 
+	var totalAlive = 0;
+
 	for (var pid in battle.players)
 	{
 		if (battle.players[pid].hp > 0)
 		{
+			totalAlive++;
+
 			if (battle.players[pid].tribe == 1)
 				tribe1Alive++;
 
@@ -564,14 +568,44 @@ function processResults(battle)
 		}
 	}
 
-	if (tribe1Alive == 0 || tribe2Alive == 0)
+	var isPracticeBattle = (tribe1Alive > 0 && tribe2Alive == 0) || (tribe1Alive == 0 && tribe2Alive > 0);
+
+	if (isPracticeBattle)
 	{
-		var winnerTribe = (tribe1Alive > 0) ? "Yeknom" : "Huhuloa";
+		if (totalAlive <= 1)
+		{
+			var winnerPid = null;
 
-		endBattle(battle, winnerTribe);
+			for (var pid in battle.players)
+			{
+				if (battle.players[pid].hp > 0)
+				{
+					winnerPid = pid;
 
-		return;
+					break;
 
+				}
+			}
+
+			var winnerName = (winnerPid != null) ? battle.players[winnerPid].name : "Nobody";
+
+			endBattle(battle, winnerName);
+
+			return;
+
+		}
+	}
+	else
+	{
+		if (tribe1Alive == 0 || tribe2Alive == 0)
+		{
+			var winnerTribe = (tribe1Alive > 0) ? "Yeknom" : "Huhuloa";
+
+			endBattle(battle, winnerTribe);
+
+			return;
+
+		}
 	}
 
 	broadcastNextMove(battle);
@@ -630,6 +664,22 @@ function endBattle(battle, winnerTribe)
 
 	battle.waitingForTurn = false;
 
+	var tribe1Count = 0;
+
+	var tribe2Count = 0;
+
+	for (var pid in battle.players)
+	{
+		if (battle.players[pid].tribe == 1)
+			tribe1Count++;
+
+		else
+			tribe2Count++;
+
+	}
+
+	var isPracticeBattle = (tribe1Count > 0 && tribe2Count == 0) || (tribe1Count == 0 && tribe2Count > 0);
+
 	if (winnerTribe == undefined)
 	{
 		var tribe1Hp = 0;
@@ -649,54 +699,55 @@ function endBattle(battle, winnerTribe)
 
 	}
 
-	// Increment cc_tribes battles_won for winner
-	try
+	if (!isPracticeBattle)
 	{
-		var winTId = (winnerTribe == "Yeknom") ? 1 : 2;
-		dbase.executeCommand("UPDATE cc_tribes SET battles_won = battles_won + 1 WHERE ID = " + winTId);
-
-		// Refresh "Battle Zone1" variables
-		var lobby = _server.getCurrentZone().getRoomByName("Battle Zone1");
-
-		if (lobby != null)
+		try
 		{
-			var t1Wins = 0;
+			var winTId = (winnerTribe == "Yeknom") ? 1 : 2;
+			dbase.executeCommand("UPDATE cc_tribes SET battles_won = battles_won + 1 WHERE ID = " + winTId);
 
-			var t2Wins = 0;
+			var lobby = _server.getCurrentZone().getRoomByName("Battle Zone1");
 
-			var qrWins = dbase.executeQuery("SELECT ID, battles_won FROM cc_tribes WHERE ID IN (1, 2)");
-
-			if (qrWins != null)
+			if (lobby != null)
 			{
-				for (var i = 0; i < qrWins.size(); i++)
+				var t1Wins = 0;
+
+				var t2Wins = 0;
+
+				var qrWins = dbase.executeQuery("SELECT ID, battles_won FROM cc_tribes WHERE ID IN (1, 2)");
+
+				if (qrWins != null)
 				{
-					var rowW = qrWins.get (i);
+					for (var i = 0; i < qrWins.size(); i++)
+					{
+						var rowW = qrWins.get (i);
 
-					var tid = Number(rowW.getItem("ID"));
+						var tid = Number(rowW.getItem("ID"));
 
-					var bwon = Number(rowW.getItem("battles_won"));
+						var bwon = Number(rowW.getItem("battles_won"));
 
-					if (tid == 1)
-						t1Wins = bwon;
+						if (tid == 1)
+							t1Wins = bwon;
 
-					else if (tid == 2)
-						t2Wins = bwon;
+						else if (tid == 2)
+							t2Wins = bwon;
 
+					}
 				}
-			}
-			var rVars = [
-					{name: "tribe1WinsTdy", val: t1Wins},
-					{name: "tribe2WinsTdy", val: t2Wins}
-				];
+				var rVars = [
+						{name: "tribe1WinsTdy", val: t1Wins},
+						{name: "tribe2WinsTdy", val: t2Wins}
+					];
 
-			_server.setRoomVariables(lobby, null, rVars);
+				_server.setRoomVariables(lobby, null, rVars);
+
+			}
+		}
+		catch (e)
+		{
+			trace("[BattleGame] Error updating cc_tribes or lobby: " + e);
 
 		}
-	}
-	catch (e)
-	{
-		trace("[BattleGame] Error updating cc_tribes or lobby: " + e);
-
 	}
 
 	var userList = battle.room.getAllUsers();
@@ -743,12 +794,24 @@ function endBattle(battle, winnerTribe)
 				}
 				total++;
 
-				if ((p.tribe == 1 && winnerTribe == "Yeknom") ||
-						(p.tribe == 2 && winnerTribe == "Huhuloa"))
+				if (!isPracticeBattle)
 				{
-					wins++;
+					if ((p.tribe == 1 && winnerTribe == "Yeknom") ||
+							(p.tribe == 2 && winnerTribe == "Huhuloa"))
+					{
+						wins++;
 
+					}
 				}
+				else
+				{
+					if (winnerTribe == p.name)
+					{
+						wins++;
+
+					}
+				}
+
 				var newBtl = wins + ";" + total;
 
 				// Update skill (XP) column: skill stores "xp1,xp2"

@@ -191,14 +191,80 @@ function handleRequest(cmd, params, user, fromRoom)
 		var targetUser = _server.getUserById(Number(params.uid));
 		if (targetUser == null) return;
 
-		var targetName = dbGetUserField(username, "username");
+		// Check if both players are from the same tribe
+		var challengerTribe = null;
+		var targetTribe = null;
+		
+		try
+		{
+			var cTrbVar = user.getVariable("trb");
+			// probably will never happen but JUST CAUSE.
+			if (cTrbVar == null)
+			{
+				trace("[gameManager] pracBattle: challenger has no tribe variable");
+				return;
+			}
+			challengerTribe = Number(cTrbVar.getValue());
+			
+			var tTrbVar = targetUser.getVariable("trb");
+			if (tTrbVar == null)
+			{
+				trace("[gameManager] pracBattle: target has no tribe variable");
+				return;
+			}
+			targetTribe = Number(tTrbVar.getValue());
+		}
+		catch (e)
+		{
+			trace("[gameManager] Error getting tribe: " + e);
+			return;
+		}
+
+		if (challengerTribe != targetTribe)
+		{
+			trace("[gameManager] pracBattle blocked: different tribes (challenger=" + challengerTribe + " target=" + targetTribe + ")");
+			return;
+		}
+
+		var challengerName = user.getName();
 
 		var resp = {};
 		resp._cmd = "sceneRepAuto";
 		resp.sub  = "btlChallenge";
-		resp.nm   = targetName;
-		resp.uid  = params.uid;
+		resp.nm   = challengerName;
+		resp.uid  = String(user.getUserId());
 		_server.sendResponse(resp, -1, null, [targetUser]);
+		
+		trace("[gameManager] pracBattle: " + challengerName + " challenged " + targetUser.getName());
+	}
+
+	// ---------------------------------------------------------
+	// pracBattleResp - response to practice battle challenge
+	// ---------------------------------------------------------
+	else if (cmd == "pracBattleResp")
+	{
+		if (!isValidInt(params.uid)) { trace("BLOCKED: invalid uid"); return; }
+
+		var challengerUser = _server.getUserById(Number(params.uid));
+		if (challengerUser == null) 
+		{
+			trace("[gameManager] pracBattleResp: challenger not found uid=" + params.uid);
+			return;
+		}
+
+		var accepterUserId = user.getUserId();
+		var challengerUserId = challengerUser.getUserId();
+
+		trace("[gameManager] pracBattleResp: " + user.getName() + " accepted challenge from " + challengerUser.getName());
+
+		// Send agreement notification to both players
+		// client will automatically send joingame commands after receiving this
+		var resp = {};
+		resp._cmd = "sceneRepAuto";
+		resp.sub  = "btlChallengeAgree";
+		resp.p1   = challengerUserId;
+		resp.p2   = accepterUserId;
+		_server.sendResponse(resp, -1, null, [challengerUser, user]);
 	}
 
 	// ---------------------------------------------------------
