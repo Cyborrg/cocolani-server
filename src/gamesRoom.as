@@ -14,6 +14,7 @@ var battleRoomsState = {}; // keyed by roomId
 var LOBBY_WAIT_SECONDS = 30;
 var lobbyCheckTimerId = null;
 var startThreshold = 2; // minimum players to start – loaded from cc_battle_settings
+var availableLevels = [1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12]; // Battle map levels
 
 function init()
 {
@@ -335,10 +336,34 @@ function startBattleLoading(state)
 		return;
 
 	state.started = true;
-	// Battle map levels
-	var availableLevels = [1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12];
 
-	state.level = availableLevels[Math.floor(Math.random() * availableLevels.length)];
+	// Check if this is a practice battle (all players same tribe)
+	var tribe1Count = 0;
+
+	var tribe2Count = 0;
+
+	for (var pid in state.players)
+	{
+		if (state.players[pid].tribe == 1)
+			tribe1Count++;
+
+		else
+			tribe2Count++;
+
+	}
+
+	var isPracticeBattle = (tribe1Count > 0 && tribe2Count == 0) || (tribe1Count == 0 && tribe2Count > 0);
+
+	// Practice battles always use level 1, regular battles use random level
+	if (isPracticeBattle)
+	{
+		state.level = 1;
+		trace("[GamesRoom] Practice battle detected - using level 1");
+	}
+	else
+	{
+		state.level = availableLevels[Math.floor(Math.random() * availableLevels.length)];
+	}
 
 	var userList = state.room.getAllUsers();
 
