@@ -31,11 +31,22 @@ function handleRequest(cmd, params, user, fromRoom)
 	// Moderator-only access check 
 	if (!user.isModerator())
 	{
-		trace("[admin] BLOCKED non-moderator " + user.getName() + " attempted: " + cmd);
-		dbSaveUserField(user.getName(), "hacks", "True");
-		_server.banUser(user, 1,
-			"You attempted to access a restricted function. You have been banned.",
-			_server.BAN_BY_NAME);
+		var uname  = user.getName();
+		var uip    = user.getIpAddress();
+		var reason = "Attempted to access restricted admin function: " + cmd;
+		
+		trace("[admin] BLOCKED non-moderator " + uname + " attempted: " + cmd);
+		
+		dbSaveUserField(uname, "hacks", "True");
+		
+		var banSqlName = "INSERT INTO `cc_bans` (`username`, `ip`, `reason`, `until`, `banned_by`, `ban_type`) VALUES ('"
+		               + dbEscape(uname) + "', '"
+		               + dbEscape(uip) + "', '"
+		               + dbEscape(reason) + "', '', 'admin', 'name')";
+		try { dbase.executeCommand(banSqlName); }
+		catch (e) { trace("[admin] cc_bans insert error: " + e); }
+		
+		_server.banUser(user, 1, "You attempted to access a restricted function. You have been banned.", _server.BAN_BY_NAME);
 		return;
 	}
 
