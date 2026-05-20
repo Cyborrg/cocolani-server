@@ -15,6 +15,7 @@ var LOBBY_WAIT_SECONDS = 30;
 var lobbyCheckTimerId = null;
 var startThreshold = 2; // minimum players to start – loaded from cc_battle_settings
 var availableLevels = [1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12]; // Battle map levels
+var userPracticePartners = {}; // Track practice partners per username for rematch
 
 function init()
 {
@@ -109,40 +110,160 @@ function handleJoinGame(params, user, fromRoom)
 {
 	var zone = _server.getCurrentZone();
 
+	var isPracticeBattle = (params.pvt != null && params.pvt == 1) || (params.type != null && params.type == 0);
+
+	var allowedPids = null;
+
+	if (isPracticeBattle && params.pids != null)
+	{
+		allowedPids = String(params.pids).split(",");
+
+		trace("[GamesRoom] Practice battle request from " + user.getName() + " for players: " + params.pids);
+
+	}
+	else if (isPracticeBattle)
+	{
+		trace("[GamesRoom] Practice battle request from " + user.getName() + " (no pids specified)");
+
+	}
+
 	var existingRoom = null;
 
 	var existingRoomId = null;
 
-	var rooms = zone.getRooms();
 
-	for (var i = 0; i < rooms.length; i++)
+	if (isPracticeBattle && allowedPids != null)
 	{
-		var rm = rooms[i];
+		var rooms = zone.getRooms();
 
-		var rmName = rm.getName();
-
-		if (rmName.indexOf("Battle1_") == 0)
+		for (var i = 0; i < rooms.length; i++)
 		{
-			var rmId = rm.getId();
+			var rm = rooms[i];
 
-			var state = battleRoomsState[rmId];
+			var rmName = rm.getName();
 
-			if (rm.howManyUsers() < rm.getMaxUsers() && (state == undefined || !state.started))
+			if (rmName.indexOf("Battle1_") == 0)
 			{
-				existingRoom = rm;
+				var rmId = rm.getId();
 
-				existingRoomId = rmId;
+				var state = battleRoomsState[rmId];
 
-				break;
+				if (state != undefined && state.isPractice && state.allowedPids != null)
+				{
+					var userIdStr = String(user.getUserId());
 
+					var isAllowed = false;
+
+					for (var j = 0; j < state.allowedPids.length; j++)
+					{
+						if (state.allowedPids[j] == userIdStr)
+						{
+							isAllowed = true;
+
+							break;
+
+						}
+					}
+
+					if (isAllowed && rm.howManyUsers() < rm.getMaxUsers() && !state.started)
+					{
+						existingRoom = rm;
+
+						existingRoomId = rmId;
+
+						break;
+
+					}
+				}
+			}
+		}
+	}
+	else if (isPracticeBattle)
+	{
+
+		var username = user.getName();
+		var partnerUsername = userPracticePartners[username];
+		
+		trace("[GamesRoom] Looking for practice room for username=" + username + " partner=" + partnerUsername);
+		
+		if (partnerUsername != null)
+		{
+			var rooms = zone.getRooms();
+			trace("[GamesRoom] Total rooms to check: " + rooms.length);
+
+			for (var i = 0; i < rooms.length; i++)
+			{
+				var rm = rooms[i];
+				var rmName = rm.getName();
+
+				if (rmName.indexOf("Battle1_") == 0)
+				{
+					var rmId = rm.getId();
+					var state = battleRoomsState[rmId];
+
+					if (state != undefined && state.isPractice && rm.howManyUsers() < rm.getMaxUsers() && !state.started)
+					{
+						
+						var partnerInRoom = false;
+						var userList = rm.getAllUsers();
+						for (var j = 0; j < userList.length; j++)
+						{
+							if (userList[j].getName() == partnerUsername)
+							{
+								partnerInRoom = true;
+								break;
+							}
+						}
+
+						if (partnerInRoom)
+						{
+							existingRoom = rm;
+							existingRoomId = rmId;
+							break;
+						}
+					}
+				}
+			}
+		}
+		else
+		{
+			trace("[GamesRoom] No practice partner found for " + username);
+		}
+	}
+	else
+	{
+		var rooms = zone.getRooms();
+
+		for (var i = 0; i < rooms.length; i++)
+		{
+			var rm = rooms[i];
+
+			var rmName = rm.getName();
+
+			if (rmName.indexOf("Battle1_") == 0)
+			{
+				var rmId = rm.getId();
+
+				var state = battleRoomsState[rmId];
+
+				if (state != undefined && state.isPractice)
+					continue;
+
+				if (rm.howManyUsers() < rm.getMaxUsers() && (state == undefined || !state.started))
+				{
+					existingRoom = rm;
+
+					existingRoomId = rmId;
+
+					break;
+
+				}
 			}
 		}
 	}
 
 	if (existingRoom != null)
 	{
-		trace("[GamesRoom] Joining existing room: " + existingRoom.getName() + " id=" + existingRoomId);
-
 		_server.joinRoom(user, fromRoom, false, existingRoomId, "", false, true);
 
 		trackPlayer(existingRoomId, existingRoom, user);
@@ -158,9 +279,9 @@ function handleJoinGame(params, user, fromRoom)
 
 		roomObj.name = roomName;
 
-		roomObj.maxU = 6;
+		roomObj.maxU = isPracticeBattle ? 2 : 6;
 
-		roomObj.maxS = 6;
+		roomObj.maxS = isPracticeBattle ? 2 : 6;
 
 		roomObj.isGame = true;
 
@@ -168,10 +289,10 @@ function handleJoinGame(params, user, fromRoom)
 
 		var roomVars = [
 				{name: "tb", val: "0"},
-				{name: "plyrs", val: "8"}
+				{name: "plyrs", val: isPracticeBattle ? "2" : "8"}
 			];
 
-		trace("[GamesRoom] Creating battle room: " + roomName);
+		trace("[GamesRoom] Creating battle room: " + roomName + (isPracticeBattle ? " (PRACTICE)" : ""));
 
 		var newRoom = _server.createRoom(roomObj, null, true, true, roomVars);
 
@@ -180,6 +301,22 @@ function handleJoinGame(params, user, fromRoom)
 			var newRoomId = newRoom.getId();
 
 			trace("[GamesRoom] Battle room created with ID: " + newRoomId);
+
+			battleRoomsState[newRoomId] = {
+					room: newRoom,
+					roomId: newRoomId,
+					playerCount: 0,
+					started: false,
+					waitingForMore: false,
+					firstJoinTime: 0,
+					level: 0,
+					players: {},
+					isPractice: isPracticeBattle,
+					allowedPids: allowedPids,
+					practicePartners: []
+				};
+
+			trace("[GamesRoom] State initialized: isPractice=" + isPracticeBattle + " allowedPids=" + allowedPids);
 
 			_server.joinRoom(user, fromRoom, false, newRoomId, "", false, true);
 
@@ -210,7 +347,10 @@ function trackPlayer(roomId, room, user)
 				waitingForMore: false,
 				firstJoinTime: 0,
 				level: 0,
-				players: {}
+				players: {},
+				isPractice: false,
+				allowedPids: null,
+				practicePartners: []
 			};
 
 	}
@@ -317,6 +457,26 @@ function trackPlayer(roomId, room, user)
 
 	if (state.playerCount >= startThreshold && !state.started)
 	{
+		if (state.isPractice)
+		{
+			state.practicePartners = [];
+			var partnerIndex = 0;
+			for (var pid in state.players)
+			{
+				var username = state.players[pid].name;
+				state.practicePartners[partnerIndex] = username;
+				partnerIndex++;
+			}
+			
+			if (state.practicePartners.length == 2)
+			{
+				var p1 = state.practicePartners[0];
+				var p2 = state.practicePartners[1];
+				userPracticePartners[p1] = p2;
+				userPracticePartners[p2] = p1;
+			}
+		}
+
 		startBattleLoading(state);
 
 	}
@@ -337,7 +497,6 @@ function startBattleLoading(state)
 
 	state.started = true;
 
-	// Check if this is a practice battle (all players same tribe)
 	var tribe1Count = 0;
 
 	var tribe2Count = 0;
